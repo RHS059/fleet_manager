@@ -733,7 +733,7 @@ button{font-family:inherit;font-variant-numeric:tabular-nums;white-space:nowrap;
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dashboard&quot;,&quot;map&quot;,&quot;vehicles&quot;,&quot;detail&quot;,&quot;work&quot;,&quot;drivers&quot;,&quot;hos&quot;,&quot;dvir&quot;,&quot;fuel&quot;,&quot;fuellog&quot;],&quot;default&quot;:&quot;dashboard&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Mockup&quot;},&quot;fleetName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Northrange Logistics&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Mockup&quot;}}">
 class Component extends DCLogic {
-  state = { screen: null, mapMode: '2d', selId: '482·K17', tick: 0, moreOpen: false };
+  state = { screen: null, mapMode: '3d', selId: '482·K17', tick: 0, moreOpen: false };
 
   cur() { return this.state.screen || this.props.startScreen || 'dashboard'; }
 
