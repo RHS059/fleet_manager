@@ -1,0 +1,284 @@
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 4px 10px"><span style="font-size:17px;font-weight:600;letter-spacing:-.01em">Fleet status now</span><span style="font-size:13px;color:rgba(255,255,255,0.62)">248 assets</span></div>
+      <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px 14px 4px">
+        <div style="display:flex;gap:2px;height:10px;border-radius:9999px;overflow:hidden;margin-bottom:8px"><sc-for list="{{ statusLegend }}" as="s" hint-placeholder-count="5"><span style="width:{{ s.share }};background:{{ s.hue }}"></span></sc-for></div>
+        <sc-for list="{{ statusLegend }}" as="s" hint-placeholder-count="5">
+          <div onClick="{{ s.on }}" style="display:flex;align-items:center;gap:10px;height:44px;border-top:1px solid rgba(255,255,255,0.06);cursor:pointer" style-active="background:rgba(255,255,255,0.05)">
+            <span style="width:8px;height:8px;border-radius:9999px;flex:none;background:{{ s.hue }}"></span>
+            <span style="font-size:15px;flex:1;min-width:0">{{ s.name }}</span>
+            <span style="font-size:12px;color:rgba(255,255,255,0.55)">{{ s.share }}</span>
+            <span style="font-size:15px;font-weight:500;width:40px;text-align:right">{{ s.count }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 4px 10px"><span style="font-size:17px;font-weight:600;letter-spacing:-.01em">Miles driven</span><a href="#" onClick="{{ goReports }}" style="font-size:14px;font-weight:500">Full report</a></div>
+      <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+        <div style="display:flex;padding:3px;gap:2px;border-radius:10px;background:rgba(255,255,255,0.06);margin-bottom:14px"><sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3"><button onClick="{{ r.on }}" style="flex:1;height:32px;border-radius:8px;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};font-size:13px;font-weight:500;cursor:pointer">{{ r.label }}</button></sc-for></div>
+        <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:22px;font-weight:600;letter-spacing:-.015em">{{ milesVal }}</span><span style="font-size:13px;color:rgba(255,255,255,0.62)">{{ milesAvg }}</span></div>
+        <div style="position:relative;height:120px;margin-top:14px;background-image:radial-gradient(rgba(255,255,255,0.14) 1.4px, transparent 1.5px);background-size:6px 6px">
+          <div style="position:absolute;inset:0;background-image:radial-gradient(#2F6FE0 1.4px, transparent 1.5px);background-size:6px 6px;clip-path:{{ milesClip }};transition:clip-path .4s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.55)"><sc-for list="{{ milesAxis }}" as="a" hint-placeholder-count="7"><span>{{ a.l }}</span></sc-for></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isMap }}">
+    <div style="position:absolute;inset:0;background:#030717;overflow:hidden">
+      <div ref="{{ mapRef }}" style="position:absolute;top:0;left:0;right:0;bottom:156px"></div>
+      <div style="position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;background:#050816;opacity:{{ loadOpacity }};visibility:{{ loadVis }};pointer-events:{{ loadPE }};transition:opacity .6s ease, visibility .6s"><div style="width:44px;height:44px;border-radius:12px;background:#3FE39B;display:flex;align-items:center;justify-content:center"><div style="width:15px;height:15px;border-radius:3px;border:2px solid #04150C"></div></div><div style="font-size:15px;font-weight:600">Loading live fleet</div><div style="width:160px;height:3px;border-radius:9999px;background:rgba(255,255,255,0.10);overflow:hidden"><div style="width:40%;height:100%;border-radius:9999px;background:#3FE39B;animation:fmLoadBar 1.1s ease-in-out infinite"></div></div><div style="font-size:12px;color:rgba(255,255,255,0.55)">Streaming terrain, buildings and {{ fleetTotal }} vehicles</div></div>
+      <div style="position:absolute;inset:0;display:{{ mapBusyShow }};align-items:center;justify-content:center;background:rgba(11,13,12,0.55);pointer-events:none;z-index:3">
+        <span style="display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 16px;border-radius:9999px;background:rgba(14,16,15,0.96);border:1px solid rgba(255,255,255,0.12);font-size:14px"><span style="width:14px;height:14px;border-radius:9999px;border:2px solid rgba(255,255,255,0.22);border-top-color:#35d9b0;animation:fmspin 0.7s linear infinite"></span>{{ mapBusyLabel }}</span>
+      </div>
+      <div style="position:absolute;top:calc(env(safe-area-inset-top) + 10px);left:12px;right:12px;display:flex;flex-direction:column;gap:10px;z-index:2">
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;min-width:0;height:46px;display:flex;align-items:center;gap:10px;padding:0 16px;border-radius:9999px;background:rgba(14,16,15,0.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.10);box-shadow:0 6px 20px rgba(0,0,0,.35)"><svg width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" style="flex:none"><circle cx="6.25" cy="6.25" r="3.75"/><path d="M9.25 9.25 12 12"/></svg><input value="{{ mapQ }}" onChange="{{ setMapQ }}" placeholder="Search vehicles, drivers" type="search" enterkeyhint="search" style="flex:1;min-width:0;height:100%;background:transparent;border:none;outline:none;color:#F5F7F6;font:inherit;font-size:16px"></div>
+          <button onClick="{{ refreshMap }}" aria-label="Reload map" style="width:46px;height:46px;flex:none;border-radius:9999px;background:rgba(14,16,15,0.94);border:1px solid rgba(255,255,255,0.10);box-shadow:0 6px 20px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;cursor:pointer" style-active="filter:brightness(1.3)"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="rgba(255,255,255,0.82)" stroke-width="1.5" stroke-linecap="round"><path d="M13.25 8A5.25 5.25 0 1 1 11.7 4.3"/><path d="M11.9 1.9v2.6H9.3"/></svg></button>
+        </div>
+        <sc-if value="{{ hasMapResults }}"><div style="border-radius:16px;background:rgba(14,16,15,0.97);border:1px solid rgba(255,255,255,0.10);box-shadow:0 12px 28px rgba(0,0,0,.45);overflow:hidden"><sc-for list="{{ mapResults }}" as="r" hint-placeholder-count="4"><button onClick="{{ r.on }}" style="width:100%;display:flex;align-items:center;gap:12px;min-height:52px;padding:0 14px;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;text-align:left" style-active="background:rgba(255,255,255,0.08)"><span style="width:30px;height:30px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:{{ r.hue }}">{{ r.mark }}</span><span style="flex:1;min-width:0;font-size:15px">{{ r.id }}</span><span style="font-size:13px;color:rgba(255,255,255,0.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.driver }}</span></button></sc-for></div></sc-if><sc-if value="{{ noMapResults }}"><div style="padding:12px 16px;border-radius:16px;background:rgba(14,16,15,0.97);font-size:14px;color:rgba(255,255,255,0.62)">No vehicles match</div></sc-if>
+        <div class="m-scroll" style="display:flex;gap:8px;overflow-x:auto;margin:0 -12px;padding:0 12px 4px">
+          <div style="display:flex;flex:none;height:38px;padding:3px;gap:2px;border-radius:9999px;background:rgba(14,16,15,0.94);border:1px solid rgba(255,255,255,0.10)">
+            <button onClick="{{ mapModes.d2.on }}" style="height:30px;padding:0 14px;border-radius:9999px;border:none;cursor:pointer;font-size:13px;font-weight:500;background:{{ mapModes.d2.bg }};color:{{ mapModes.d2.fg }}">2D</button>
+            <button onClick="{{ mapModes.d3.on }}" style="height:30px;padding:0 14px;border-radius:9999px;border:none;cursor:pointer;font-size:13px;font-weight:500;background:{{ mapModes.d3.bg }};color:{{ mapModes.d3.fg }}">3D</button>
+            <button onClick="{{ mapModes.iso.on }}" style="height:30px;padding:0 14px;border-radius:9999px;border:none;cursor:pointer;font-size:13px;font-weight:500;background:{{ mapModes.iso.bg }};color:{{ mapModes.iso.fg }}">Iso</button>
+          </div>
+          <sc-for list="{{ liveChips }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.on }}" style="flex:none;display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:9999px;background:{{ c.bg }};border:1px solid {{ c.border }};font-size:13px;color:{{ c.fg }};cursor:pointer"><span style="width:7px;height:7px;border-radius:9999px;background:{{ c.dot }}"></span>{{ c.label }}</button></sc-for>
+        </div>
+      </div>
+
+      <div style="position:absolute;left:0;right:0;bottom:0;height:{{ mSheetH }};z-index:4;display:flex;flex-direction:column;background:#121514;border-radius:20px 20px 0 0;border-top:1px solid rgba(255,255,255,0.10);box-shadow:0 -12px 32px rgba(0,0,0,.45);transition:height .32s cubic-bezier(.2,.8,.2,1)">
+        <div onTouchStart="{{ sheetTouchStart }}" onTouchEnd="{{ sheetTouchEnd }}" style="flex:none">
+          <button onClick="{{ sheetToggle }}" aria-label="{{ sheetAria }}" style="width:100%;height:26px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="width:38px;height:5px;border-radius:9999px;background:rgba(255,255,255,0.28)"></span></button>
+          <div style="display:flex;align-items:center;gap:12px;padding:0 16px">
+            <div onClick="{{ sheetToggle }}" style="flex:1;min-width:0;display:flex;align-items:center;gap:12px;cursor:pointer">
+              <span style="width:42px;height:42px;flex:none;border-radius:12px;background:{{ sel.hue }};color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ sel.mark }}</span>
+              <div style="min-width:0">
+                <div style="font-size:17px;font-weight:600;letter-spacing:-.01em">{{ sel.id }}</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.62);white-space:nowrap;overflow:hidden"><span style="width:7px;height:7px;flex:none;border-radius:9999px;background:{{ sel.dot }}"></span><span style="overflow:hidden;text-overflow:ellipsis">{{ sel.state }}</span></div>
+              </div>
+            </div>
+            <button onClick="{{ toggleFollow }}" style="flex:none;display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border-radius:9999px;border:1px solid {{ followBorder }};background:{{ followBg }};color:{{ followFg }};font-size:13px;font-weight:500;cursor:pointer"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="2"/><path d="M6 .8v2M6 9.2v2M.8 6h2M9.2 6h2"/></svg>{{ mFollowLabel }}</button>
+          </div>
+        </div>
+        <div class="m-scroll" style="flex:1;min-height:0;overflow-y:{{ mSheetOverflow }};-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 16px calc(env(safe-area-inset-bottom) + 20px)">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+            <div style="padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.04)"><div style="font-size:11px;color:rgba(255,255,255,0.55)">Speed</div><div style="font-size:16px;font-weight:500;margin-top:2px;white-space:nowrap">{{ sel.speed }}</div></div>
+            <div style="padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.04)"><div style="font-size:11px;color:rgba(255,255,255,0.55)">Next stop</div><div style="font-size:16px;font-weight:500;margin-top:2px;white-space:nowrap">{{ sel.eta }}</div></div>
+            <div style="padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.04)"><div style="font-size:11px;color:rgba(255,255,255,0.55)">Fuel</div><div style="font-size:16px;font-weight:500;margin-top:2px;white-space:nowrap">{{ sel.fuel }}</div></div>
+          </div>
+          <sc-if value="{{ mFull }}">
+          <div style="margin-top:18px;display:flex;flex-direction:column;gap:18px;animation:fmFade 200ms ease">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:8px"><span>Route progress</span><span style="color:#F5F7F6;font-weight:500">{{ sel.progress }}</span></div>
+              <div style="display:flex;gap:3px"><sc-for list="{{ routeTicks }}" as="t" hint-placeholder-count="20"><span style="flex:1;height:14px;border-radius:2px;background:{{ t.c }}"></span></sc-for></div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:4px">Driver</div>
+              <div style="font-size:15px;font-weight:500">{{ sel.driver }}</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.62);margin-top:2px">{{ sel.model }}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:4px">Trip</div>
+              <div style="font-size:15px;font-weight:500;text-wrap:pretty">{{ trip.where }}</div>
+              <div style="font-size:13px;color:rgba(255,255,255,0.72);margin-top:3px;text-wrap:pretty">{{ trip.purpose }}</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button onClick="{{ act.message }}" style="flex:1;height:46px;border-radius:12px;background:#3FE39B;border:none;color:#04150C;font-size:15px;font-weight:600;cursor:pointer" style-active="filter:brightness(0.9)">Message driver</button>
+              <button onClick="{{ act.reassign }}" style="flex:1;height:46px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);font-size:15px;font-weight:500;cursor:pointer" style-active="background:rgba(255,255,255,0.14)">Reassign</button>
+            </div>
+            <div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-bottom:8px">Manifest</div>
+              <sc-if value="{{ hasCargo }}">
+              <div style="border-radius:12px;background:rgba(255,255,255,0.04);overflow:hidden">
+                <sc-for list="{{ cargo }}" as="c" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;min-height:40px;padding:0 12px;font-size:14px;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="width:6px;height:6px;border-radius:3px;background:#F5C542;flex:none"></span><span>{{ c.c }}</span></div></sc-for>
+              </div>
+              </sc-if>
+              <sc-if value="{{ noCargo }}"><div style="font-size:14px;color:rgba(255,255,255,0.62)">{{ cargoNote }}</div></sc-if>
+            </div>
+            <button onClick="{{ openSel }}" style="height:46px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);font-size:15px;font-weight:500;cursor:pointer" style-active="background:rgba(255,255,255,0.14)">Open asset record</button>
+            <div>
+              <div style="font-size:17px;font-weight:600;margin-bottom:8px">Nearby assets</div>
+              <div style="border-radius:12px;background:rgba(255,255,255,0.04);overflow:hidden">
+                <sc-for list="{{ mNearby }}" as="n" hint-placeholder-count="6">
+                  <button onClick="{{ n.on }}" style="width:100%;display:flex;align-items:center;gap:12px;min-height:58px;padding:0 12px;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.06);text-align:left;cursor:pointer" style-active="background:rgba(255,255,255,0.08)">
+                    <span style="width:34px;height:34px;flex:none;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;background:{{ n.hue }}">{{ n.mark }}</span>
+                    <div style="flex:1;min-width:0"><div style="font-size:15px">{{ n.id }}</div><div style="display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.62);overflow:hidden"><span style="width:6px;height:6px;flex:none;border-radius:4px;background:{{ n.dot }}"></span><span style="overflow:hidden;text-overflow:ellipsis">{{ n.state }}</span></div></div>
+                    <span style="font-size:13px;color:rgba(255,255,255,0.62)">{{ n.dist }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isVehicles }}">
+    <div class="m-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 16px 28px">
+      <div style="display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border-radius:12px;background:#121514;border:1px solid rgba(255,255,255,0.08)"><svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" style="flex:none"><circle cx="6.25" cy="6.25" r="3.75"/><path d="M9.25 9.25 12 12"/></svg><input ref="{{ vSearchRef }}" value="{{ vq }}" onChange="{{ setVq }}" placeholder="Search ID, driver or model" type="search" enterkeyhint="search" style="flex:1;min-width:0;height:100%;background:transparent;border:none;outline:none;color:#F5F7F6;font:inherit;font-size:16px"></div>
+      <div class="m-scroll" style="display:flex;gap:8px;overflow-x:auto;margin:10px -16px 0;padding:0 16px"><sc-for list="{{ vChips }}" as="c" hint-placeholder-count="6"><button onClick="{{ c.on }}" style="flex:none;height:34px;padding:0 14px;border-radius:9999px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font-size:13px;font-weight:500;cursor:pointer">{{ c.label }}</button></sc-for></div>
+      <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;margin-top:14px">
+        <sc-if value="{{ vEmpty }}"><div style="padding:28px 16px;text-align:center"><div style="font-size:15px;font-weight:500">No vehicles match</div><button onClick="{{ clearVFilters }}" style="margin-top:12px;height:40px;padding:0 16px;border-radius:10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);font-size:14px;cursor:pointer">Clear filters</button></div></sc-if>
+        <sc-for list="{{ vehicles }}" as="v" hint-placeholder-count="8">
+          <button onClick="{{ v.on }}" style="width:100%;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;column-gap:12px;padding:12px 14px;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.06);text-align:left;cursor:pointer;white-space:normal" style-active="background:rgba(255,255,255,0.06)">
+            <span style="width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:{{ v.hue }}">{{ v.mark }}</span>
+            <div style="min-width:0">
+              <div style="font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.id }}</div>
+              <div style="font-size:12px;color:rgba(255,255,255,0.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">{{ v.model }}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:6px;min-width:0">
+                <span style="flex:none;display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:9999px;background:rgba(255,255,255,0.06);font-size:12px"><span style="width:6px;height:6px;border-radius:9999px;background:{{ v.dot }}"></span>{{ v.status }}</span>
+                <span style="min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ v.driverColor }}">{{ v.driver }}</span>
+              </div>
+              <div style="font-size:12px;margin-top:5px;color:{{ v.svcColor }}">{{ v.svc }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;min-width:48px">
+              <span style="font-size:15px;font-weight:500">{{ v.fuel }}</span>
+              <span style="display:block;width:44px;height:4px;border-radius:2px;background:rgba(255,255,255,0.10);overflow:hidden"><span style="display:block;height:100%;width:{{ v.fuel }};background:{{ v.fuelColor }}"></span></span>
+            </div>
+          </button>
+        </sc-for>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px"><button onClick="{{ act.vPrev }}" style="height:40px;padding:0 14px;border-radius:10px;background:rgba(255,255,255,0.06);border:none;font-size:14px;cursor:pointer;color:{{ vPrevFg }}">Previous</button><span style="font-size:13px;color:rgba(255,255,255,0.55)">{{ vRangeLabel }}</span><button onClick="{{ act.vNext }}" style="height:40px;padding:0 14px;border-radius:10px;background:rgba(255,255,255,0.06);border:none;font-size:14px;cursor:pointer;color:{{ vNextFg }}">Next</button></div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isDetail }}">
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+      <div class="m-scroll" style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:14px 16px 28px">
+        <div style="font-size:12px;color:rgba(255,255,255,0.55);font-family:'IBM Plex Mono',ui-monospace,monospace;margin:0 4px 12px">VIN 1FVACWDT7HHJ12094</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+          <sc-for list="{{ detailKpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+              <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.62)">{{ k.name }}</div>
+              <div style="font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1;margin:12px 0 8px">{{ k.value }}</div>
+              <div style="font-size:12px;font-weight:500;color:{{ k.deltaColor }}">{{ k.delta }}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.50);margin-top:2px">{{ k.vs }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 4px 10px"><span style="font-size:17px;font-weight:600">Active fault codes</span><span style="font-size:12px;color:rgba(255,255,255,0.55)">J1939 live</span></div>
+        <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden">
+          <sc-for list="{{ faults }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <span style="width:8px;height:8px;flex:none;border-radius:9999px;background:{{ f.dot }}"></span>
+              <div style="flex:1;min-width:0"><div style="font-size:15px">{{ f.name }}</div><div style="font-size:12px;color:rgba(255,255,255,0.55);font-family:'IBM Plex Mono',ui-monospace,monospace;margin-top:2px">{{ f.code }}</div></div>
+              <div style="flex:none;text-align:right"><div style="font-size:13px;font-weight:500;color:{{ f.sevColor }}">{{ f.sev }}</div><div style="font-size:12px;color:rgba(255,255,255,0.50)">{{ f.when }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:17px;font-weight:600;margin:26px 4px 10px">Asset</div>
+        <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:0 14px">
+          <sc-for list="{{ specs }}" as="s" hint-placeholder-count="7">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:46px;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="font-size:13px;color:rgba(255,255,255,0.55)">{{ s.k }}</span><span style="font-size:14px;text-align:right">{{ s.v }}</span></div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin:26px 4px 10px"><span style="font-size:17px;font-weight:600">Service history</span><a href="#" onClick="{{ linkToast }}" style="font-size:14px;font-weight:500">Full log</a></div>
+        <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden">
+          <sc-for list="{{ history }}" as="h" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div style="flex:1;min-width:0"><div style="font-size:15px">{{ h.name }}</div><div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:2px">{{ h.sub }}</div><div style="font-size:12px;color:rgba(255,255,255,0.42)">{{ h.shop }}</div></div>
+              <div style="flex:none;text-align:right"><div style="font-size:14px;font-weight:500">{{ h.cost }}</div><div style="font-size:12px;color:rgba(255,255,255,0.50)">{{ h.date }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex:none;display:flex;gap:8px;padding:10px 16px;background:rgba(10,12,11,0.96);border-top:1px solid rgba(255,255,255,0.08)">
+        <button onClick="{{ act.assignDriver }}" style="flex:1;height:46px;border-radius:12px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.10);font-size:15px;font-weight:500;cursor:pointer" style-active="background:rgba(255,255,255,0.14)">Assign driver</button>
+        <button onClick="{{ act.workorder }}" style="flex:1.3;height:46px;border-radius:12px;background:#3FE39B;border:none;color:#04150C;font-size:15px;font-weight:600;cursor:pointer" style-active="filter:brightness(0.9)">Create work order</button>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isWork }}">
+    <div class="m-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:4px 16px 28px">
+      <sc-for list="{{ columns }}" as="col" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:8px;margin:20px 4px 10px"><span style="width:8px;height:8px;border-radius:9999px;background:{{ col.hue }}"></span><span style="font-size:17px;font-weight:600">{{ col.name }}</span><span style="font-size:13px;color:rgba(255,255,255,0.55)">{{ col.count }}</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ col.cards }}" as="c" hint-placeholder-count="2">
+            <div style="background:#121514;border:{{ c.border }};border-radius:14px;padding:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;color:rgba(255,255,255,0.55);font-family:'IBM Plex Mono',ui-monospace,monospace">{{ c.wo }}</span><span style="font-size:12px;font-weight:500;color:{{ c.prColor }}">{{ c.priority }}</span></div>
+              <div style="font-size:15px;font-weight:500;margin-top:6px;text-wrap:pretty">{{ c.title }}</div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+                <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:9999px;background:rgba(255,255,255,0.06);font-size:12px"><span style="width:6px;height:6px;border-radius:9999px;background:{{ c.hue }}"></span>{{ c.asset }}</span>
+                <span style="flex:1"></span>
+                <span style="font-size:12px;color:rgba(255,255,255,0.62)">{{ c.due }}</span>
+                <span style="width:26px;height:26px;border-radius:9999px;background:{{ c.tint }};font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center">{{ c.who }}</span>
+              </div>
+              <sc-if value="{{ c.presence }}"><div style="display:inline-flex;margin-top:10px;border-radius:6px;padding:3px 8px;background:#8B5CF6;color:#fff;font-size:12px;font-weight:500">{{ c.presence }}</div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isDrivers }}">
+    <div class="m-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 16px 28px">
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+        <sc-for list="{{ safetyKpis }}" as="k" hint-placeholder-count="4">
+          <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+            <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ k.name }}</div>
+            <div style="font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1;margin:12px 0 8px">{{ k.value }}</div>
+            <div style="font-size:12px;font-weight:500;color:{{ k.deltaColor }}">{{ k.delta }}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.50);margin-top:2px">{{ k.vs }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:17px;font-weight:600;margin:26px 4px 10px">Drivers</div>
+      <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden">
+        <sc-for list="{{ drivers }}" as="d" hint-placeholder-count="6">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <span style="width:40px;height:40px;flex:none;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#fff;background:{{ d.hue }}">{{ d.mark }}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:500">{{ d.name }}</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.62);white-space:nowrap;overflow:hidden"><span style="width:6px;height:6px;flex:none;border-radius:4px;background:{{ d.dot }}"></span><span style="overflow:hidden;text-overflow:ellipsis">{{ d.state }}</span></div>
+              <div style="display:flex;gap:2px;margin-top:8px"><sc-for list="{{ d.ticks }}" as="t" hint-placeholder-count="20"><span style="flex:1;max-width:6px;height:10px;border-radius:2px;background:{{ t.c }}"></span></sc-for></div>
+            </div>
+            <div style="flex:none;text-align:right"><div style="font-size:20px;font-weight:600">{{ d.score }}</div><div style="font-size:11px;color:rgba(255,255,255,0.50)">{{ d.events }} events</div></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="font-size:17px;font-weight:600;margin:26px 4px 10px">Recent events</div>
+      <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden">
+        <sc-for list="{{ events }}" as="ev" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <div style="flex:1;min-width:0"><div style="font-size:15px">{{ ev.name }}</div><div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:2px">{{ ev.sub }}</div></div>
+            <span style="flex:none;font-size:13px;font-weight:500;color:{{ ev.sevColor }}">{{ ev.sev }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isHos }}">
+    <div class="m-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 16px 28px;display:flex;flex-direction:column;gap:10px">
+      <sc-for list="{{ hos }}" as="h" hint-placeholder-count="6">
+        <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="width:38px;height:38px;flex:none;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:{{ h.hue }}">{{ h.mark }}</span>
+            <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500">{{ h.name }}</div><div style="display:flex;align-items:center;gap:6px;font-size:13px;color:rgba(255,255,255,0.62)"><span style="width:6px;height:6px;border-radius:4px;background:{{ h.dot }}"></span>{{ h.status }}<span style="margin-left:4px;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.07);font-size:11px;color:rgba(255,255,255,0.72)">{{ h.veh }}</span></div></div>
+            <div style="flex:none;text-align:right"><div style="font-size:20px;font-weight:600;color:{{ h.remColor }}">{{ h.rem }}</div><div style="font-size:11px;color:rgba(255,255,255,0.50)">drive left</div></div>
+          </div>
+          <div style="display:flex;gap:3px;margin-top:14px"><sc-for list="{{ h.ticks }}" as="t" hint-placeholder-count="20"><span style="flex:1;height:12px;border-radius:2px;background:{{ t.c }}"></span></sc-for></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <div style="flex:1;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.04)"><div style="font-size:11px;color:rgba(255,255,255,0.55)">14-hour window</div><div style="font-size:15px;font-weight:500">{{ h.window }}</div></div>
+            <div style="flex:1;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.04)"><div style="font-size:11px;color:rgba(255,255,255,0.55)">70-hour cycle</div><div style="font-size:15px;font-weight:500">{{ h.cycle }}</div></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ isDvir }}">
+    <div class="m-scroll" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:16px 16px 28px;display:flex;flex-direction:column;gap:10px">
+      <sc-for list="{{ dvirs }}" as="d" hint-placeholder-count="6">
+        <div style="background:#121514;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:14px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="width:38px;height:38px;flex:none;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:{{ d.hue }}">{{ d.mark }}</span>
+            <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:15px;font-weight:500">{{ d.veh }}</span><span style="padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.07);font-size:11px;color:rgba(255,255,255,0.72)">{{ d.type }}</span></div><div style="display:flex;gap:10px;font-size:13px;color:rgba(255,255,255,0.62)"><span>{{ d.driver }}</span><span style="color:rgba(255,255,255,0.45)">{{ d.when }}</span></div></div>
+            <span style="flex:none;font-size:13px;font-weight:500;color:{{ d.statusColor }}">{{ d.status }}</span>
+          </div>
+          <div style="margin-top:12px;border-radius:10px;background:rgba(255,255,255,0.04);padding:0 12px">
+            <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="3">
