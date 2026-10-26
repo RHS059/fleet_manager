@@ -4,6 +4,7 @@ import { createRuntime, BASE_CSS } from './template-runtime.js';
 import FleetLogic from './FleetLogic.js';
 import template from './fleet.template.html?raw';
 import './styles.css';
+import { prepareTemplate } from './prepare-template.js';
 
 const base = document.createElement('style');
 base.textContent = BASE_CSS;
@@ -11,7 +12,7 @@ document.head.prepend(base);
 const runtime = createRuntime(document);
 runtime.markFetched('FleetConsole');
 runtime.setRootName('FleetConsole');
-runtime.updateHtml('FleetConsole', template);
+runtime.updateHtml('FleetConsole', prepareTemplate(template, import.meta.env.BASE_URL));
 runtime.registry.get('FleetConsole').Logic = FleetLogic;
 const FleetConsole = runtime.getDC('FleetConsole');
 createRoot(document.getElementById('root')).render(

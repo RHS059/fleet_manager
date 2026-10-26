@@ -28,3 +28,17 @@ npm run preview
 Pushes to `main` run tests and build the site before publishing **only `dist/`** to GitHub Pages. Pull requests run the same validation without deploying. Pages must use GitHub Actions as its source. Relative asset paths support both repository Pages URLs and custom domains.
 
 The old fragmented deployment files are replaced by the maintainable source build. Original mockup/editor duplicates and unused reference images are not shipped to the production site.
+
+## Portfolio URL and automatic updates
+
+The portfolio serves this app at https://www.reidhslaughter.com/apps/fleet-management.
+`npm run build:deploy` builds both the normal GitHub Pages site and a second build in
+`dist/portfolio/` with `/apps/fleet-management/` as its asset base. Both are published
+atomically by the existing Pages workflow after tests pass.
+
+The portfolio's Next.js rewrites proxy that second build's HTML and assets under the
+portfolio URL. A successful deployment from this repository therefore updates the
+portfolio app automatically (subject to CDN caching), without cross-repository tokens,
+copied source, scheduled synchronization or a portfolio rebuild. GitHub Pages must
+remain available as the upstream host. Use a normal HTML link for navigation to the
+standalone app rather than Next.js client-side navigation.
