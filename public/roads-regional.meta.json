@@ -1,0 +1,47 @@
+{
+  "description": "Bundled Reno/Sparks/North Valleys major-road geometry for the fleet simulation. This display-derived graph is not a navigational routing database.",
+  "capturedAt": "2026-10-26",
+  "source": {
+    "provider": "CARTO",
+    "dataset": "carto.streets/v2",
+    "version": "20261001-03",
+    "schema": "Protomaps",
+    "sourceLayer": "roads",
+    "tileURL": "https://tiles.basemaps.cartocdn.com/v/20261001-03/vectortiles/carto.streets/v2/{z}/{x}/{y}.mvt",
+    "styleURL": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    "zoom": 12,
+    "tileX": [
+      682,
+      686
+    ],
+    "tileY": [
+      1555,
+      1559
+    ]
+  },
+  "bounds": {
+    "west": -120.01,
+    "east": -119.64,
+    "south": 39.39,
+    "north": 39.68
+  },
+  "encoding": {
+    "line": "[classIndex, [x, y], ...]",
+    "x": "round((longitude + 119.81) * 100000)",
+    "y": "round((latitude - 39.53) * 100000)",
+    "classes": [
+      "motorway",
+      "trunk",
+      "primary",
+      "secondary",
+      "tertiary"
+    ],
+    "links": "Ramp (_link) classes use their parent road class.",
+    "processing": "Keep original quantized geometry, including bridge and tunnel continuations; split parts at the capture boundary; remove consecutive duplicate coordinates and identical/reversed duplicate lines. Runtime joins shared points and nearby loose ends using the existing graph builder."
+  },
+  "polylines": 2144,
+  "attribution": "\u00a9 OpenStreetMap contributors \u00a9 CARTO",
+  "license": "Open Database License (ODbL) for the OpenStreetMap-derived database",
+  "licenseURL": "https://www.openstreetmap.org/copyright",
+  "schemaURL": "https://docs.protomaps.com/basemaps/layers"
+}

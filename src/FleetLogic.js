@@ -7,6 +7,7 @@ function loadGraphics() {
     .catch(error => { graphicsPromise = null; throw error; });
 }
 import localRoads from '../public/roads.json';
+import regionalRoads from '../public/roads-regional.json';
 
 
 export default class FleetLogic extends StreamableLogic {
@@ -133,34 +134,13 @@ export default class FleetLogic extends StreamableLogic {
 
   // ---------- road graph ----------
   loadRegionRoads() {
-    return new Promise(res => {
-      let settled = false; const div = document.createElement('div');
-      div.style.cssText = 'position:fixed;left:-9999px;top:0;width:420px;height:760px;pointer-events:none';
-      document.body.appendChild(div);
-      let m; const done = lines => { if (settled) return; settled = true; try { m && m.remove(); } catch (e) { } div.remove(); res(lines); };
-      try {
-        m = new maplibregl.Map({ container: div, style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json', center: [-119.78, 39.52], zoom: 11.4, interactive: false, attributionControl: false });
-      } catch (e) { return done([]); }
-      const timer = setTimeout(() => done([]), 12000);
-      const harvest = () => {
-        const CL = { motorway: 0, trunk: 1, primary: 2, secondary: 3, tertiary: 4 }, B = { w: -119.96, e: -119.64, s: 39.41, n: 39.63 }, lines = [], seen = new Set();
-        m.querySourceFeatures('carto', { sourceLayer: 'transportation' }).forEach(f => {
-          const c = CL[f.properties.class]; if (c === undefined || f.properties.brunnel === 'tunnel') return;
-          const g = f.geometry, parts = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
-          parts.forEach(p => {
-            const q = []; let last = null;
-            p.forEach(pt => { if (pt[0] < B.w || pt[0] > B.e || pt[1] < B.s || pt[1] > B.n) return; const x = Math.round((pt[0] + 119.81) * 1e5), y = Math.round((pt[1] - 39.53) * 1e5); if (last && Math.hypot((x - last[0]) * 0.86, (y - last[1]) * 1.11) < 18) return; q.push([x, y]); last = [x, y]; });
-            if (q.length < 2) return; const k = c + JSON.stringify(q); if (seen.has(k)) return; seen.add(k); lines.push([c, ...q]);
-          });
-        });
-        clearTimeout(timer); done(lines);
-      };
-      m.once('idle', harvest);
-    });
+    // Routing must not depend on a basemap provider's changing source names,
+    // viewport, or tile-loading timing. See roads-regional.meta.json for provenance.
+    return regionalRoads;
   }
   async loadRoads() {
     if (this.roads) return this.roads;
-    const [dt, rg] = await Promise.all([Promise.resolve(localRoads), this.loadRegionRoads()]);
+    const dt = localRoads, rg = await this.loadRegionRoads();
     const LIM = [29, 24, 19, 16, 13.5], DT_LIM = 12.5;
     const nodes = new Map(); const key = p => p[0] + ',' + p[1];
     const node = (p, lim) => { let n = nodes.get(key(p)); if (!n) { n = { x: p[0], y: p[1], adj: [], lim: 0 }; nodes.set(key(p), n); } if (lim > n.lim) n.lim = lim; return n; };
@@ -296,12 +276,54 @@ export default class FleetLogic extends StreamableLogic {
     v.act = this.activitiesFor(v, kind); v.actIdx = randomize ? Math.floor(Math.random() * v.act.length) : 0;
     v.waitUntil = now + (randomize ? Math.random() : 1) * v.act[v.actIdx].dur; v.actStart = v.waitUntil - v.act[v.actIdx].dur;
   }
-  actLabel(v) { return v.act && v.act[v.actIdx] ? v.act[v.actIdx].label : null; }
-  actDetail(v) { return v.act && v.act[v.actIdx] ? v.act[v.actIdx].detail : null; }
+  actLabel(v) { return v.dispatchWaiting ? 'Awaiting dispatch window' : v.act && v.act[v.actIdx] ? v.act[v.actIdx].label : null; }
+  actDetail(v) { return v.dispatchWaiting ? 'Staged off road until a departure slot is available' : v.act && v.act[v.actIdx] ? v.act[v.actIdx].detail : null; }
   freeSlot(v) { if (v.slot) { v.slot.free = true; v.slot = null; } }
+  initTrafficCapacity() {
+    const reachable = new Set();
+    for (const base of this.bases) {
+      const distances = base.trees[0].dist;
+      for (const n of this.roads) if (Number.isFinite(distances[n.i])) reachable.add(n.i);
+    }
+    let laneMetres = 0;
+    for (const n of this.roads) {
+      if (!reachable.has(n.i)) continue;
+      const a = this.nodeM(n);
+      for (const next of n.adj) {
+        if (!reachable.has(next.i)) continue;
+        const b = this.nodeM(next);
+        laneMetres += Math.hypot(b.x - a.x, b.y - a.y) * this.lanesFor({ node: n }, { node: next });
+      }
+    }
+    // Conservative dispatch tuning for this simulation, not measured road capacity.
+    // Count directed lane length, so adding geometry vertices cannot raise the limit.
+    this.trafficLaneMetres = laneMetres;
+    this.trafficLimit = Math.max(1, Math.min(Math.floor(this.fleet().length * 0.4), Math.floor(laneMetres / 250)));
+    this.activeTrips = 0; this.dispatchQueue = new Set();
+  }
+  deferDispatch(v, now, rotate = false) {
+    const queue = this.dispatchQueue || (this.dispatchQueue = new Set());
+    if (rotate) queue.delete(v);
+    queue.add(v); v.dispatchWaiting = true; v.dispatchRetry = (v.dispatchRetry || 0) + 1;
+    v.waitUntil = now + 1.5 + (v.seed || 0) * 2 + (v.dispatchRetry * 0.61803398875 % 1) * 2;
+  }
+  canDispatch(v, now) {
+    if (v.trafficActive || this.trafficLimit == null) return true;
+    if ((this.activeTrips || 0) < this.trafficLimit) {
+      // A future retry must not block other vehicles already ready to leave.
+      let firstReady = null;
+      if (this.dispatchQueue) for (const queued of this.dispatchQueue) { if (queued.waitUntil <= now) { firstReady = queued; break; } }
+      if (!firstReady || firstReady === v) return true;
+    }
+    this.deferDispatch(v, now); return false;
+  }
+  releaseTraffic(v) {
+    if (!v.trafficActive) return;
+    v.trafficActive = false; this.activeTrips--;
+  }
   initVehicles() {
     if (this.vehicles) return this.vehicles;
-    this.initDepot(); this.dijkstraFromBase();
+    this.initDepot(); this.dijkstraFromBase(); this.initTrafficCapacity();
     this.pois().forEach(p => { p.node = this.nearestNode(this.fromLngLat(p.lng, p.lat), 2); });
     const now = performance.now() / 1000, b = this.base;
     const LEN = { truck: 21, van: 6.5, car: 5 };
@@ -319,13 +341,14 @@ export default class FleetLogic extends StreamableLogic {
       const r = Math.random();
       if (r < 0.2 && atBaseBudget > 0) { const s = this.takeSlot(h); if (s) { atBaseBudget--; v.slot = s; v.mx = s.x; v.my = s.y; this.planTrip(v, h.node); this.beginActs(v, now, 'depot', true); return v; } }
       const r2 = Math.random();
-      if (r2 < 0.06 && returnBudget > 0 && h.slots.some(s => s.free)) { this.planTrip(v, h.node); if (v.outPts) { returnBudget--; v.slot = this.takeSlot(h); this.startLeg(v, 'back', this.backPts(v)); if (this.placeFree(v, occ)) return v; this.freeSlot(v); } }
+      if (r2 < 0.06 && returnBudget > 0 && this.activeTrips < this.trafficLimit && h.slots.some(s => s.free)) { this.planTrip(v, h.node); if (v.outPts) { returnBudget--; v.slot = this.takeSlot(h); this.startLeg(v, 'back', this.backPts(v)); if (this.placeFree(v, occ)) return v; this.releaseTraffic(v); this.freeSlot(v); v.phase = 'atBase'; } }
       const o = origins.length ? origins[i % origins.length] : null;
       this.planTrip(v, o ? o.node : h.node, o ? o.tree : null);
       if (!v.outPts) { this.planTrip(v, h.node); if (!v.outPts) return v; }
-      this.startLeg(v, 'out', v.outPts);
-      // ~55% of the working fleet is on site at any moment, realistic for a delivery/service fleet
-      if (r2 < 0.58 || !this.placeFree(v, occ)) { this.placeAt(v, 1); this.arrive(v, 'atDest', now, true); }
+      const driving = r2 >= 0.58 && this.activeTrips < this.trafficLimit;
+      this.startLeg(v, 'out', v.outPts, driving);
+      // Excess fleet remains visible at customer sites instead of entering a full road network.
+      if (!driving || !this.placeFree(v, occ)) { this.placeAt(v, 1); this.arrive(v, 'atDest', now, true); }
       return v;
     });
     this.byType = { car: [], van: [], truck: [] };
@@ -384,12 +407,17 @@ export default class FleetLogic extends StreamableLogic {
   committed(node) { return (this._commit && this._commit.get(node.i)) || 0; }
   commitTo(node) { this._commit = this._commit || new Map(); this._commit.set(node.i, this.committed(node) + 1); }
   releaseCommit(node) { if (!node || !this._commit) return; const c = this.committed(node) - 1; if (c > 0) this._commit.set(node.i, c); else this._commit.delete(node.i); }
-  startLeg(v, phase, pts) {
+  startLeg(v, phase, pts, driving = true) {
+    if (driving && !v.trafficActive && this.trafficLimit != null && (this.activeTrips || 0) >= this.trafficLimit) return false;
+    if (driving && !v.trafficActive) { v.trafficActive = true; this.activeTrips = (this.activeTrips || 0) + 1; }
+    if (this.dispatchQueue) this.dispatchQueue.delete(v);
+    v.dispatchWaiting = false; v.dispatchRetry = 0;
     // a vehicle occupies its destination from the moment it sets off until it pulls away again
     if (phase === 'out') { this.releaseCommit(v.committedNode); v.committedNode = v.pendingCommit || null; if (v.committedNode) this.commitTo(v.committedNode); }
     else if (phase === 'back') { this.releaseCommit(v.committedNode); v.committedNode = null; }
     v.phase = phase; v.pts = pts; v.seg = 0; v.t = 0; v.speed = 0; v.travelled = 0; v.cleared = false; v.waitUntil = 0; v.stopAtNext = false; v.lane = 0;
     let L = 0; for (let i = 0; i < pts.length - 1; i++) L += Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y); v.legLen = L || 1;
+    return true;
   }
   placeAt(v, frac) {
     let d = v.legLen * frac; v.travelled = d;
@@ -406,12 +434,15 @@ export default class FleetLogic extends StreamableLogic {
       const A = v.pts[v.seg], B = v.pts[v.seg + 1]; if (!A.node || !B.node) continue;
       const key = this.segKey(A, B), list = occ.get(key) || [];
       v.lane = Math.floor(Math.random() * this.lanesFor(A, B));
-      if (list.every(w => w.lane !== v.lane || Math.abs(w.t - v.t) > (w.len + v.len) / 2 + 4)) { list.push(v); occ.set(key, list); return true; }
+      const spaced = list.every(w => w.lane !== v.lane || Math.abs(w.t - v.t) > (w.len + v.len) / 2 + 4);
+      const ahead = spaced && this.routeLeader(v.pts, v.seg, v.t, v.lane, v, occ, v.len + 30).gap > 4;
+      if (ahead && this.mergeClear(v.pts, v, occ, v.seg, v.lane, v.t, false)) { list.push(v); occ.set(key, list); return true; }
     }
     return false;
   }
   // park just off the carriageway while dwelling so the road stays clear
   arrive(v, phase, now, randomize) {
+    this.releaseTraffic(v);
     const A = v.pts[v.seg], B = v.pts[v.seg + 1]; const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
     v.phase = phase; v.speed = 0; v.mx = B.x + (dy / L) * 5.5; v.my = B.y - (dx / L) * 5.5; v.nx = dy / L; v.ny = -dx / L;
     if (v.a.type === 'car') { this.beginActs(v, now, 'site', randomize); return; }
@@ -455,26 +486,91 @@ export default class FleetLogic extends StreamableLogic {
     if (site.q.length) this.layoutQueue(site, now);
   }
   // departure from a destination: head home if a bay is free, otherwise chain straight to the next job
-  entryClear(pts, v, groups) {
-    if (!groups || !pts || !pts[0].node || !pts[1].node) return true;
-    const g = groups.get(this.segKey(pts[0], pts[1])); if (!g) return true;
-    const lanes = this.lanesFor(pts[0], pts[1]);
-    for (let k = 0; k < lanes; k++) { const lane = (v.lane + k) % lanes; if (g.every(w => w.lane !== lane || w.t > (w.len + v.len) / 2 + 1)) { v.lane = lane; return true; } }
+  routeLeader(pts, seg, t, lane, v, groups, lookAhead = 200) {
+    let distance = -t, lead = null, gap = Infinity;
+    if (!groups || !pts) return { lead, gap };
+    // Geometry vertices are often only a few metres apart. A vehicle can span
+    // several of them, so following distance must continue across those edges.
+    for (let i = seg; i < pts.length - 1 && distance < lookAhead; i++) {
+      const A = pts[i], B = pts[i + 1];
+      if (!A.node || !B.node) break;
+      const lanes = this.lanesFor(A, B); if (lane >= lanes) lane = 0;
+      const key = this.segKey(A, B), occupants = groups.get(key);
+      if (occupants) for (const w of occupants) {
+        if (w === v || w.lane !== lane || !w.pts || (w.phase !== 'out' && w.phase !== 'back') || this.segKey(w.pts[w.seg], w.pts[w.seg + 1]) !== key) continue;
+        const ahead = distance + w.t;
+        if (i === seg && (ahead < 0 || (ahead === 0 && w.id < v.id))) continue;
+        const bodyGap = ahead - (w.len + v.len) / 2;
+        if (bodyGap < gap) { lead = w; gap = bodyGap; }
+      }
+      distance += Math.hypot(B.x - A.x, B.y - A.y);
+    }
+    return { lead, gap };
+  }
+  mergeClear(pts, v, groups, seg, lane, entryT = 0, braking = true) {
+    const A = pts[seg], B = pts[seg + 1], target = this.segKey(A, B), lookBack = 200;
+    const pending = [{ node: A.node, distance: 0 }], seen = new Map([[A.node.i, 0]]), checked = new Set();
+    // A parked vehicle yields to traffic approaching its merge, even when the
+    // approaching vehicle is several short geometry edges behind the driveway.
+    while (pending.length) {
+      const { node, distance } = pending.pop(), nm = this.nodeM(node);
+      for (const previous of node.adj) {
+        const occupants = groups.get(previous.i * 65536 + node.i);
+        if (occupants) for (const w of occupants) {
+          if (w === v || checked.has(w) || !w.pts || (w.phase !== 'out' && w.phase !== 'back')) continue;
+          checked.add(w);
+          let ahead = -w.t, futureLane = w.lane;
+          for (let i = w.seg; i < w.pts.length - 1 && ahead < lookBack; i++) {
+            const P = w.pts[i], Q = w.pts[i + 1]; if (!P.node || !Q.node) break;
+            if (futureLane >= this.lanesFor(P, Q)) futureLane = 0;
+            if (this.segKey(P, Q) === target) {
+              const stoppingDistance = braking ? w.speed * w.speed / (2 * (2.8 + w.seed)) : 0;
+              if (futureLane === lane && ahead + entryT >= 0 && ahead + entryT < (w.len + v.len) / 2 + (braking ? 2 : 4) + stoppingDistance) return false;
+              break;
+            }
+            ahead += Math.hypot(Q.x - P.x, Q.y - P.y);
+          }
+        }
+        const pm = this.nodeM(previous), nextDistance = distance + Math.hypot(nm.x - pm.x, nm.y - pm.y);
+        if (nextDistance < lookBack && nextDistance < (seen.get(previous.i) ?? Infinity)) { seen.set(previous.i, nextDistance); pending.push({ node: previous, distance: nextDistance }); }
+      }
+    }
+    return true;
+  }
+  entryClear(pts, v, groups, seg = 0, merging = false, entryT = 0) {
+    if (!groups || !pts || !pts[seg]?.node || !pts[seg + 1]?.node) return true;
+    const lanes = this.lanesFor(pts[seg], pts[seg + 1]);
+    for (let k = 0; k < lanes; k++) {
+      const lane = (v.lane + k) % lanes;
+      const { gap } = this.routeLeader(pts, seg, 0, lane, v, groups, v.len + 30);
+      if (gap > 1 + entryT && (!merging || this.mergeClear(pts, v, groups, seg, lane, entryT))) { v.lane = lane; return true; }
+    }
     return false;
   }
   departDest(v, now, groups) {
+    if (!this.canDispatch(v, now)) return;
     if (!v.nextLeg) {
       // head home only ~35% of the time when a bay is free, real fleets chain jobs
       const s = Math.random() < 0.35 ? this.takeSlot(v.home) : null;
       if (s) { v.slot = s; const pts = this.backPts(v); if (pts) v.nextLeg = { phase: 'back', pts }; else this.freeSlot(v); }
-      if (!v.nextLeg) { this.planTrip(v, v.destNode); if (v.outPts) v.nextLeg = { phase: 'out', pts: v.outPts }; else { v.waitUntil = now + 4; return; } }
+      if (!v.nextLeg) { this.planTrip(v, v.destNode); if (v.outPts) v.nextLeg = { phase: 'out', pts: v.outPts }; else { this.deferDispatch(v, now, true); return; } }
     }
-    if (!this.entryClear(v.nextLeg.pts, v, groups)) { v.waitUntil = now + 0.4 + Math.random() * 0.6; return; }
-    this.startLeg(v, v.nextLeg.phase, v.nextLeg.pts); v.nextLeg = null; v.act = null; this.releaseSite(v, now); this.joinGroup(v, groups);
+    if (!this.entryClear(v.nextLeg.pts, v, groups, 0, true)) { this.deferDispatch(v, now, true); return; }
+    const lane = v.lane;
+    this.startLeg(v, v.nextLeg.phase, v.nextLeg.pts); v.lane = lane; v.nextLeg = null; v.act = null; this.releaseSite(v, now); this.joinGroup(v, groups);
+  }
+  leaveGroup(v, groups) {
+    if (!groups || v.trafficKey == null) return;
+    const old = groups.get(v.trafficKey), index = old ? old.indexOf(v) : -1;
+    if (index >= 0) { old.splice(index, 1); if (!old.length) groups.delete(v.trafficKey); }
+    v.trafficKey = null;
   }
   joinGroup(v, groups) {
-    if (!groups || !v.pts) return; const k = this.segKey(v.pts[v.seg], v.pts[v.seg + 1]); if (k < 0) return;
+    if (!groups || !v.pts) return; const k = this.segKey(v.pts[v.seg], v.pts[v.seg + 1]);
+    if (v.trafficKey !== k) this.leaveGroup(v, groups);
+    if (k < 0 || (v.phase !== 'out' && v.phase !== 'back')) return;
     const g = groups.get(k); if (g) { if (!g.includes(v)) g.push(v); } else groups.set(k, [v]);
+    v.trafficKey = k;
   }
   segKey(A, B) { return A.node && B.node ? A.node.i * 65536 + B.node.i : -1; }
   stepVehicle(v, dt, now, groups) {
@@ -483,7 +579,12 @@ export default class FleetLogic extends StreamableLogic {
       v.speed = 0;
       if (now >= v.waitUntil) {
         if (v.act && v.actIdx < v.act.length - 1) { v.actIdx++; v.actStart = now; v.waitUntil = now + v.act[v.actIdx].dur; return; }
-        if (v.phase === 'atBase') { if (!v.outPts) this.planTrip(v, v.home.node); if (v.outPts) { this.startLeg(v, 'out', v.outPts); this.freeSlot(v); v.act = null; this.joinGroup(v, groups); } else v.waitUntil = now + 5; }
+        if (v.phase === 'atBase') {
+          if (!this.canDispatch(v, now)) return;
+          if (!v.outPts) this.planTrip(v, v.home.node);
+          if (v.outPts) { this.startLeg(v, 'out', v.outPts); this.freeSlot(v); v.act = null; this.joinGroup(v, groups); }
+          else this.deferDispatch(v, now, true);
+        }
         else this.departDest(v, now, groups);
       }
       return;
@@ -507,15 +608,24 @@ export default class FleetLogic extends StreamableLogic {
         desired = 0; v.speed = 0;
       } else desired = Math.min(desired, Math.sqrt(2 * DEC * Math.max(remS, 0)));
     } else if (junction && !v.cleared && lim < 17) desired = Math.min(desired, Math.max(desired * 0.6, Math.sqrt(2 * DEC * Math.max(rem, 0)) + 3));
-    // car-following: nearest vehicle ahead on this directed segment, else the tail of the next one
+    // Follow along the route, including the many short geometry edges ahead.
     let latT = 1.3;
+    v.leadRef = null; v.leadGap = Infinity;
     if (!lotLeg && groups) {
-      const half = v.len / 2; let lead = null, gap = Infinity;
+      const lookAhead = Math.max(80, v.speed * v.speed / (2 * DEC) + v.speed * 2 + v.len + 25);
+      let { lead, gap } = this.routeLeader(v.pts, v.seg, v.t, v.lane, v, groups, lookAhead);
       const same = groups.get(this.segKey(A, B));
-      if (same) for (const w of same) { if (w === v || w.lane !== v.lane || w.t < v.t || (w.t === v.t && w.id < v.id)) continue; const g = w.t - v.t - w.len / 2 - half; if (g < gap) { gap = g; lead = w; } }
-      if (!lead && !lastSeg) { const C = v.pts[v.seg + 2]; const nx = C && C.node ? groups.get(this.segKey(B, C)) : null; if (nx) for (const w of nx) { if (w.lane !== v.lane) continue; const g = rem + w.t - w.len / 2 - half; if (g < gap) { gap = g; lead = w; } } }
       // overtake: if the lead is crawling and an adjacent lane is open alongside, shift into it
-      if (lead && gap < 30 && lead.speed < desired * 0.6) { const lanes = this.lanesFor(A, B); for (let k = 1; k < lanes && lead; k++) { const ln = (v.lane + k) % lanes; const clear = !same || same.every(w => w === v || w.lane !== ln || Math.abs(w.t - v.t) > (w.len + v.len) / 2 + 8); if (clear) { v.lane = ln; lead = null; gap = Infinity; } } }
+      if (lead && gap < 30 && lead.speed < desired * 0.6) {
+        const lanes = this.lanesFor(A, B);
+        for (let k = 1; k < lanes; k++) {
+          const ln = (v.lane + k) % lanes;
+          const clear = !same || same.every(w => w === v || w.lane !== ln || Math.abs(w.t - v.t) > (w.len + v.len) / 2 + 8);
+          if (!clear) continue;
+          const candidate = this.routeLeader(v.pts, v.seg, v.t, ln, v, groups, lookAhead);
+          if (candidate.gap > Math.max(gap + 5, v.speed + 2)) { v.lane = ln; lead = candidate.lead; gap = candidate.gap; break; }
+        }
+      }
       if (lead) { const MIN = 2.0, T = 1.0, free = Math.max(gap - MIN, 0); desired = Math.min(desired, Math.max(0, Math.min(lead.speed + free / T, lead.speed * 0.9 + Math.sqrt(2 * DEC * free)))); v.leadRef = lead; v.leadGap = gap; } else v.leadRef = null;
       const opp = groups.get(this.segKey(B, A));
       if (opp) { for (const w of opp) { if (Math.abs((len - w.t) - v.t) < 40) { latT = 2.7; break; } } }
@@ -524,22 +634,29 @@ export default class FleetLogic extends StreamableLogic {
     v.speed += Math.max(-DEC * dt, Math.min(ACC * dt, desired - v.speed));
     if (v.speed < 0.05 && desired < 0.05) v.speed = 0;
     let adv = v.speed * dt;
-    if (v.leadRef && v.leadRef.pts && v.leadRef.pts[v.leadRef.seg] === A) { const maxT = v.leadRef.t - v.leadRef.len / 2 - v.len / 2 - 0.6; if (v.t + adv > maxT && maxT > v.t) { adv = Math.max(0, maxT - v.t); v.speed = Math.min(v.speed, v.leadRef.speed); } }
+    if (v.leadRef) { const safeAdvance = Math.max(0, v.leadGap - 0.6); if (adv > safeAdvance) { adv = safeAdvance; v.speed = Math.min(v.speed, adv / dt); } }
     v.t += adv; v.travelled += adv;
-    if (v.t >= len) {
-      if (lastSeg) {
-        v.t = len; v.speed = 0; v.mx = B.x; v.my = B.y;
+    while (true) {
+      const crossingA = v.pts[v.seg], crossingB = v.pts[v.seg + 1];
+      const crossingLength = Math.hypot(crossingB.x - crossingA.x, crossingB.y - crossingA.y) || 0.01;
+      if (v.t < crossingLength) break;
+      if (v.seg === v.pts.length - 2) {
+        this.leaveGroup(v, groups);
+        v.travelled -= v.t - crossingLength;
+        v.t = crossingLength; v.speed = 0; v.mx = crossingB.x; v.my = crossingB.y;
         if (v.phase === 'out') { this.arrive(v, 'atDest', now); }
-        else { v.phase = 'atBase'; v.heading = v.home.heading + 180; this.planTrip(v, v.home.node); this.beginActs(v, now, 'depot'); }
+        else { this.releaseTraffic(v); v.phase = 'atBase'; v.heading = v.home.heading + 180; this.planTrip(v, v.home.node); this.beginActs(v, now, 'depot'); }
         return;
       }
       const N0 = v.pts[v.seg + 2];
-      if (N0 && !this.entryClear([B, N0], v, groups)) { v.t = len - 0.01; v.speed = 0; v.travelled -= adv; }
+      if (N0 && !this.entryClear(v.pts, v, groups, v.seg + 1, !crossingA.node, v.t - crossingLength)) { const excess = v.t - (crossingLength - 0.01); v.t = crossingLength - 0.01; v.speed = 0; v.travelled -= Math.max(0, excess); break; }
       else {
-      v.t -= len; v.seg++; v.cleared = false; v.waitUntil = 0; this.joinGroup(v, groups);
+      this.leaveGroup(v, groups);
+      v.t -= crossingLength; v.seg++; v.cleared = false; v.waitUntil = 0;
       const N = v.pts[v.seg + 1];
       v.stopAtNext = !!(N.node && N.node.adj.length >= 3 && (N.node.lim || 0) < 15) && Math.hypot(N.x - v.pts[v.seg].x, N.y - v.pts[v.seg].y) > 25 && Math.random() < 0.08 + v.seed * 0.08;
       if (v.lane >= this.lanesFor(v.pts[v.seg], N)) v.lane = 0;
+      this.joinGroup(v, groups);
       }
     }
     const A2 = v.pts[v.seg], B2 = v.pts[v.seg + 1];
@@ -607,7 +724,7 @@ export default class FleetLogic extends StreamableLogic {
       if (document.hidden || !this.vehicles || !this.map) return;
       const now = ts / 1000;
       const groups = this._groups || (this._groups = new Map()); groups.clear();
-      for (const v of this.vehicles) { if (!v.pts || (v.phase !== 'out' && v.phase !== 'back')) continue; const k = this.segKey(v.pts[v.seg], v.pts[v.seg + 1]); if (k < 0) continue; const g = groups.get(k); if (g) g.push(v); else groups.set(k, [v]); }
+      for (const v of this.vehicles) { v.trafficKey = null; if (v.pts && (v.phase === 'out' || v.phase === 'back')) this.joinGroup(v, groups); }
       for (const v of this.vehicles) this.stepVehicle(v, dt, now, groups);
       this.updateTrace();
       if (this.follow && !this.map.isEasing()) { const f = this.vehicles.find(v => v.id === this.follow); if (f) this.map.jumpTo({ center: this.toLngLat(f.mx, f.my) }); }
@@ -1001,6 +1118,9 @@ export default class FleetLogic extends StreamableLogic {
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [-119.79, 39.52], zoom: 12.3, attributionControl: false, maxPitch: 70
     });
+    map.addControl(new maplibregl.AttributionControl({ compact: true,
+      customAttribution: 'Road data: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors · ODbL</a>'
+    }), 'bottom-right');
     this.map = map; window.__fmMap = map;
     Promise.resolve().then(() => { if (this.map === map && !this.state.mapLoading) this.setState({ mapLoading: true }); });
     const finLoad = () => { if (this.map === map && this.state.mapLoading) this.setState({ mapLoading: false }); };
